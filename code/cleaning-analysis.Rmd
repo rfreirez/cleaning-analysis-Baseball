@@ -1,0 +1,158 @@
+---
+title: 'Práctica 2: Limpieza y análisis de datos'
+author: "Renán Freire, Manuel García"
+date: "20/05/2021"
+output:
+  pdf_document: 
+    toc: yes
+    toc_depth: '2'
+  html_document: 
+    highlight: default
+    number_sections: yes
+    theme: cosmo
+    toc: yes
+    toc_depth: 2
+---
+```{r echo=FALSE, results=FALSE, message=FALSE, warning=FALSE}
+library(dplyr)
+```
+
+# Descripción del dataset
+
+## Descripción
+
+Siguiendo la línea del deporte e inspirados en la película “Moneyball”, se ha encontrado un dataset llamado “Baseball Databank” (https://www.kaggle.com/open-source-sports/baseball-databank), que contiene una extensa base de datos sobre béisbol recopilada por el periodista Sean Lahman divididos en archivos planos (csv) y entre los más importantes se tiene:
+
+* Master.csv: Contiene datos biográficos de los jugadores, como por ejemplo: Nombres, apellidos, lugar de nacimiento, año de nacimiento. Cada jugador tiene un identificado “playerID”.
+  
+* Batting.csv: Este archivo contiene datos estadísticos de bateo (corridas, homerun, número de golpes, etc).
+  
+* Pitching: Este archivo contiene datos estadísticos de lanzamiento (jugos ganados, perdidos, etc).
+  
+* Fielding.csv - Este archivo contiene datos estadísticos de las diferentes habilidades para moverse en el campo y atrapar, parar, lanzar, etc.
+
+* Salaries.csv. Este archivo contiene el salario de cada jugador de acuerdo al año, equipo y liga jugada.
+      
+Cada registro de los datasets explicados están vinculado a un jugador mediante su identificador “playerID” además de otros identificadores relacionados a otros catálogos.
+
+## Importancia y Objetivo 
+
+Para esta práctica se ha centrado en el béisbol, debido a su importancia en el ámbito del BigData, ya que año tras año, este deporte genera gran cantidad de datos estadísticos en base a su complejidad, debido a sus diferentes reglas de juego y las diferentes características que cada jugador debe desempeñar de acuerdo a su posición en el campo de juego. 
+
+El objetivo para el cual usaremos los datos, está orientado a la predicción de los salarios de los bateadores y su dependencia con los datos de desempeño de cada jugador,  generando modelos a través de algoritmos aprendizaje supervisado. Entre las preguntas a resolver tenemos:
+
+* Los números de homeruns, strikeout y golpes , tienen una correlación con el valor del salario?
+
+* La edad de cada bateador además de los datos de desempeño (homeruns, strikeout y golpes) tienen una correlación con el valor del salario?
+  
+* Evaluar si los bateadores de Estados Unidos ganan más que los bateadores del resto del mundo.
+
+# Integración y selección de los datos de interés a analizar.
+
+## Integración de fuentes de datos
+
+De acuerdo al análisis del conjunto de datos y a la problemática a resolver, planteada para esta práctica, vamos a trabajar con los datos biográficos de los jugadores que juegan en la posición de bateadores además de sus datos estadísticos y su salario. Para esto vamos a realizar una fusión horizontal y vertical de los archivos: master.csv, batting.csv, salaries.csv; mediante el identificador “playerID” que relaciona cada fuente.
+
+```{r}
+# Lectura de fuente de datos necesitadas
+dataPlayer <- read.csv('../dataset/Master.csv')
+print("[*] Dimensiones")
+dim(dataPlayer)
+print("[*] Nombre Columnas")
+colnames(dataPlayer)
+```
+
+La fuente de datos **Master.csv** tiene las siguientes dimensiones: 18846 registros y 24 columnas.
+
+
+
+```{r}
+# Lectura de fuente de datos necesitadas
+dataBatting <- read.csv('../dataset/Batting.csv')
+print("[*] Dimensiones")
+dim(dataBatting)
+print("[*] Nombre Columnas")
+colnames(dataBatting)
+```
+
+La fuente de datos **Batting.csv** tiene las siguientes dimensiones: 101332 registros y 22 columnas.
+
+```{r}
+# Lectura de fuente de datos necesitadas
+dataSalaries <- read.csv('../dataset/Salaries.csv')
+print("[*] Dimensiones")
+dim(dataSalaries)
+print("[*] Nombre Columnas")
+colnames(dataSalaries)
+```
+
+La fuente de datos **Salaries.csv** tiene las siguientes dimensiones: 25575 registros y 5 columnas.
+
+```{r}
+# Integración fuentes
+mergeCols <- c("playerID", "yearID")
+
+datasetBateadores <- merge(dataPlayer,dataSalaries,by="playerID")
+datasetBateadores <- merge(dataBatting,datasetBateadores,by=mergeCols)
+print("[*] Dimensiones")
+dim(datasetBateadores)
+print("[*] Nombre Columnas")
+colnames(datasetBateadores)
+```
+
+El dataset final tiene las siguientes dimensiones: 27385 registros y 48 columnas.
+
+## Selección de datos y reducción de dimensionalidad 
+
+Una vez analizado el dataset final, se puede identificar datos perdidos (N.D) para los años iniciales, por lo tanto, para nuestro objetivo, vamos a seleccionar todos los jugadores de posición bateadores correspondiente a los años 2014, 2015, siendo estos los datos más actuales disponibles y como resultado tenemos un conjunto de datos de alta calidad sin valores perdidos. Además como se observa en la sección anterior, el dataset contiene una gran cantidad de atributos no relevantes para nuestro estudio, por lo tanto aplicamos la técnica de selección de subconjuntos de atributos para seleccionar datos de interés. En este caso se han identificado los siguientes atributos como relevantes ya que corresponden a los datos de desempeño de los bateadores e identificación personal de los mismos, que serán de utilidad para la predicción resultante: 
+
+* yearID: Año de recopilación de datos de desempeño y salario. 
+
+* playerID: Identificador del jugador.
+
+* nameFirst: Nombre del jugador.
+
+* nameLast: Apellido del jugador.
+
+* birthCountry: País de nacimiento del jugador.
+
+* birthYear: Año de nacimiento del jugador, posteriormente será trasformado a la edad actual.
+
+* bats: Indica si el jugador es diestro o zurdo para coger el bat.
+
+* H: Número de golpes acertados con el bat. 
+
+* HR: Número de homerun.
+
+* SO: Número de strikes.
+
+* SB: Número de bases robadas por el jugador.
+
+* Salary: Salario del jugador.
+
+```{r}
+# Selección de atributos de interés
+datasetBateadores <-select(datasetBateadores, 'yearID','playerID','nameFirst', 'nameLast', 
+                           'birthCountry', 'birthYear','bats','H','HR','SO','SB','salary');
+# Selección de instancias de acuerdo a los anios 2014,2015
+datasetBateadores <- filter(datasetBateadores, yearID>2013 & yearID<2016)
+head(datasetBateadores)
+```
+
+Para que los análisis posteriores puedan ser ejecutados son confusiones, se han renombrados el nombre de las columnas del dataset final, además el campo **birthYear** es trasformado a la edad actual del jugador. Todo este proceso se presenta a continuación:
+
+```{r}
+# Renombrar nombres de interés
+names (datasetBateadores) = c('Anio', 'IdJugador','Nombre','Apellido','Pais','Edad','ManoBateo',
+                              'Golpes','HomeRun','Strikeouts','BasesRobadas','Salario')
+head(datasetBateadores)
+```
+
+
+
+
+# Limpieza de datos
+
+## Detección y tratamiento de valores perdidos
+
+## Identificación y tratamiento de valores extremos.
