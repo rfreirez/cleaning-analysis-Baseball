@@ -15,6 +15,7 @@ output:
 ---
 ```{r echo=FALSE, results=FALSE, message=FALSE, warning=FALSE}
 library(dplyr)
+library(VIM)
 ```
 
 # Descripción del dataset
@@ -51,7 +52,7 @@ El objetivo para el cual usaremos los datos, está orientado a la predicción de
 
 ## Integración de fuentes de datos
 
-De acuerdo al análisis del conjunto de datos y a la problemática a resolver, planteada para esta práctica, vamos a trabajar con los datos biográficos de los jugadores que juegan en la posición de bateadores además de sus datos estadísticos y su salario. Para esto vamos a realizar una fusión horizontal y vertical de los archivos: master.csv, batting.csv, salaries.csv; mediante el identificador “playerID” que relaciona cada fuente.
+De acuerdo al análisis del conjunto de datos y a la problemática a resolver, planteada para esta práctica, vamos a trabajar con los datos biográficos de los jugadores que juegan en la posición de bateadores además de sus datos estadísticos y su salario. Para esto vamos a realizar una fusión horizontal y vertical de los archivos: master.csv, batting.csv, salaries.csv; mediante los identificadores: “playerID” que relaciona cada fuente con el jugador y "yearID" vincula los años de los diferentes datos de rendimiento y el salario correspondiente.
 
 ```{r}
 # Lectura de fuente de datos necesitadas
@@ -120,39 +121,155 @@ Una vez analizado el dataset final, se puede identificar datos perdidos (N.D) pa
 
 * bats: Indica si el jugador es diestro o zurdo para coger el bat.
 
+* R: Número de carreras de un jugador
+
 * H: Número de golpes acertados con el bat. 
 
 * HR: Número de homerun.
 
 * SO: Número de strikes.
 
-* SB: Número de bases robadas por el jugador.
-
-* Salary: Salario del jugador.
+* Salary: Salario anual del jugador.
 
 ```{r}
 # Selección de atributos de interés
 datasetBateadores <-select(datasetBateadores, 'yearID','playerID','nameFirst', 'nameLast', 
-                           'birthCountry', 'birthYear','bats','H','HR','SO','SB','salary');
+                           'birthCountry', 'birthYear','bats','R','H','HR','SO','salary');
 # Selección de instancias de acuerdo a los anios 2014,2015
 datasetBateadores <- filter(datasetBateadores, yearID>2013 & yearID<2016)
 head(datasetBateadores)
 ```
 
-Para que los análisis posteriores puedan ser ejecutados son confusiones, se han renombrados el nombre de las columnas del dataset final, además el campo **birthYear** es trasformado a la edad actual del jugador. Todo este proceso se presenta a continuación:
+Para que los análisis posteriores puedan ser ejecutados son confusiones, se han renombrado el nombre de las columnas del dataset final, además el campo **birthYear** es trasformado a la edad actual del jugador. Todo este proceso se presenta a continuación:
 
 ```{r}
 # Renombrar nombres de interés
 names (datasetBateadores) = c('Anio', 'IdJugador','Nombre','Apellido','Pais','Edad','ManoBateo',
-                              'Golpes','HomeRun','Strikeouts','BasesRobadas','Salario')
-head(datasetBateadores)
+                              'Carreras','Golpes','HomeRun','Strikeouts','Salario')
+# Transformar anio de nacimiento por edad
+datasetBateadores$Edad <- 2021 - datasetBateadores$Edad
+head(datasetBateadores, n=10)
 ```
 
+Una vez realizado la selección de datos y la reducción de dimensionalidad, se ha descubierto que para ciertos jugadores del datastet tienen más de un registro para el mismo año, de acuerdo a  la documentación de Sea Lahman, estos datos se presentan de esa forma ya que corresponden a los datos estadísticos de un jugador que estuvo en diferentes equipos o ligas para el mismo año. Para solucionar esto, se va a fusionar los registros de ese jugador en una sola fila y los datos estadísticos de rendimiento y salario tendrán el valor de la media.
 
+```{r}
+# Se agrupan registros para el mismo jugador calculando la media de los datos estadisticos
+datasetBateadores <- aggregate(cbind(Edad,Carreras,Golpes,HomeRun,Strikeouts,Salario) ~ Anio + IdJugador + Nombre + Apellido + Pais + ManoBateo, data = datasetBateadores, FUN = mean)
+# Ordenar por idJugador
+datasetBateadores <- datasetBateadores[order(datasetBateadores$IdJugador),]
+head(datasetBateadores, n=10)
+```
 
 
 # Limpieza de datos
 
 ## Detección y tratamiento de valores perdidos
 
+EL dataset final, no contiene datos perdidos o no definidos ya que en secciones anteriores se filtraron los datos para los años mas actuales debido a que los años más antiguos tenían un gran porcentaje de datos no definidos.
+
+```{r}
+# Valores perdidos determinados por N.A
+colSums(is.na(datasetBateadores))
+```
+
+Sin embargo, después de realizar una inspección al conjunto de datos, se ha identificado un caso especial, donde existen registros con valor 0 en las variables **carreras, golpes, homerun, strikeout** y dicho jugador tiene asignado un salario. Debido a que una de nuestras preguntas iniciales consisten en determinar la relación del las variables de rendimiento con el valor del salario del jugador, vamos a imputar estos valores 0 de todas las variables antes mencionadas mediante el algoritmo del vecino más cercano KNN, siendo este el más eficaz.
+
+Para esto vamos a asignar el valor *NA* a la variables indicadas cuyos registros cumplan la condición de que las cuatro variables (carreras, golpes, homerun, strikeout) sean igual a 0 y su valor de salario mayor a 0 y a continuación se procede a la imputación. El modelo KNN permite rellenar los registros con los valores *NA*, en base a las demás observaciones del dataset, promediando todos los puntos más cercanos. Esta implementación se puede observar a continuación, que consta de la identificación del número de casos con datos de rendimiento en 0, además se inspecciona la variable salario si posee valores en 0 y finalmente la inputación de valores.
+
+
+```{r}
+# Verificamos datos de rendimiento en 0
+dfEstadisticasCero <- filter(datasetBateadores, Carreras==0 & Golpes==0 & HomeRun==0 & Strikeouts==0)
+# Verificamos datos de salario en 0
+dfSalarioCero <- filter(datasetBateadores, Salario==0)
+# cosntruye dataframe de resultados
+resultados <-data.frame(c(nrow(dfEstadisticasCero), nrow(dfSalarioCero)), c('DATOS RENDIMIENTO EN 0', 'DATOS SALRIOS EN 0'))
+resultados <- setNames(resultados, c('Nro. Registros', 'Descripción'))
+resultados
+```
+
+
+```{r}
+# Obtener indices de los datos de rendimiento tengan todos 0 y presenten salario
+indicesFiltros <- which(datasetBateadores$Golpes == 0 & datasetBateadores$HomeRun == 0 & datasetBateadores$Strikeouts == 0 & datasetBateadores$Carreras == 0
+                        & datasetBateadores$Salario > 0)
+# Reemplazar valores de 0 por NA para los indices extraídos
+datasetBateadores$Golpes[indicesFiltros] <- NA
+datasetBateadores$HomeRun[indicesFiltros] <- NA
+datasetBateadores$Strikeouts[indicesFiltros] <- NA
+datasetBateadores$Carreras[indicesFiltros] <- NA
+# Verificamos valores NA
+colSums(is.na(datasetBateadores))
+```
+
+```{r}
+# Imputación de valores perdidos
+datasetBateadores <- kNN(datasetBateadores)
+head(datasetBateadores,n=10)
+```
+
+```{r}
+# Eliminar columnas agregagdas por el método KNN usado para imputación
+datasetBateadores <- datasetBateadores[ -c(13:24) ]
+head(datasetBateadores, n=10)
+```
+
+## Tipos de variables
+
+Después de haber limpiado los datos debemos verificar los tipos de datos de las diferentes columnas que conforman en el dataset, mediante la función de R **str()**, como se ve a continuación:
+
+```{r}
+str(datasetBateadores)
+```
+
+De acuerdo a la salida de esta función, tenemos que los datos estadísticos que se van a analizar son de tipo numérico, listos para los análisis posteriores. Estos valores serán formateados para que presenten solo un decimal.
+
+```{r}
+datasetBateadores$Golpes <- round(datasetBateadores$Golpes, digits = 2)
+datasetBateadores$HomeRun <- round(datasetBateadores$HomeRun, digits = 2)
+datasetBateadores$Strikeouts <- round(datasetBateadores$Strikeouts, digits = 2)
+datasetBateadores$Carreras <- round(datasetBateadores$Carreras, digits = 2) 
+head(datasetBateadores, n=10)
+```
+
+
 ## Identificación y tratamiento de valores extremos.
+
+Para nuestro dataset final vamos a identificar si existen valores extremos sobre las variables de tipo numérico, mediante gráficas de caja y bigote para cada variable implicada. A continuación se presentan las gŕaficas y los resultados obtenidos.
+
+```{r}
+par(mfrow=c(3,2))
+boxplot(datasetBateadores$Golpes, main="BoxPlot Golpes", col="green")
+outliersGolpes <- boxplot.stats(datasetBateadores$Golpes)$out
+
+boxplot(datasetBateadores$HomeRun, main="BoxPlot HomeRun", col="blue")
+outliersHomeRun <- boxplot.stats(datasetBateadores$HomeRun)$out
+
+boxplot(datasetBateadores$Strikeouts, main="BoxPlot Strikeouts", col="red")
+outliersStrikes <- boxplot.stats(datasetBateadores$Strikeouts)$out
+
+boxplot(datasetBateadores$Carreras, main="BoxPlot Carreras", col="brown")
+outliersCarreras <- boxplot.stats(datasetBateadores$Carreras)$out
+
+boxplot(datasetBateadores$Salario, main="BoxPlot Salario", col="yellow")
+outliersSalarios <- boxplot.stats(datasetBateadores$Salario)$out
+
+boxplot(datasetBateadores$Edad, main="BoxPlot Edad", col="gray")
+outliersEdad <- boxplot.stats(datasetBateadores$Edad)$out
+
+```
+De acuerdo a los gráficos, podemos identificar que la variable **Salario** tiene 146 valores extremos y la variable **Edad** contiene 29 valores extremos, debido a que sobrepasan el rango intercuatílico, en este caso el límite superior.  Estos valores han sido revisados aleatoriamente y contrastando con otras fuentes (https://www.spotrac.com/mlb/rankings/), podemos indicar que no se trata de valores atípicos, los datos son correctos y los consideraremos en el análisis final.
+
+# Análisis de los datos.
+
+## Selección de los grupos de datos que se quieren analizar/comparar (planificación de los análisis a aplicar).
+
+## Comprobación de la normalidad y homogeneidad de la varianza.
+
+## Aplicación de pruebas estadísticas para comparar los grupos de datos. En función de los datos y el objetivo del estudio, aplicar pruebas de contraste de hipótesis, correlaciones, regresiones, etc. Aplicar al menos tres métodos de análisis diferentes.
+
+# Representación de los resultados a partir de tablas y gráficas.
+
+# Resolución del problema. A partir de los resultados obtenidos, ¿cuáles son las conclusiones? ¿Los resultados permiten responder al problema?
+
