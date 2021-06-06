@@ -39,9 +39,9 @@ Cada registro de los datasets explicados están vinculado a un jugador mediante 
 
 Para esta práctica se ha centrado en el béisbol, debido a su importancia en el ámbito del BigData, ya que año tras año, este deporte genera gran cantidad de datos estadísticos en base a su complejidad, debido a sus diferentes reglas de juego y las diferentes características que cada jugador debe desempeñar de acuerdo a su posición en el campo de juego. 
 
-El objetivo para el cual usaremos los datos, está orientado a la predicción de los salarios de los bateadores y su dependencia con los datos de desempeño de cada jugador,  generando modelos a través de algoritmos aprendizaje supervisado. Entre las preguntas a resolver tenemos:
+El objetivo para el cual usaremos los datos, está orientado a la predicción de los salarios de los bateadores y su dependencia con los datos de desempeño de cada jugador en la posición de bateo y las correspondientes estadísticas de campo en la posición fielding,  generando modelos a través de algoritmos aprendizaje supervisado. Entre las preguntas a resolver tenemos:
 
-* Se puedel explicar el salario de los jugadores con los atributos técnicos?
+* Se puede explicar el salario de los jugadores con los atributos técnicos?
 
 * Existe una diferencia significativa entre los salarios de los jugadores nacidos en USA y los jugadores del Resto del Mundo?
   
@@ -51,7 +51,10 @@ El objetivo para el cual usaremos los datos, está orientado a la predicción de
 
 ## Integración de fuentes de datos
 
-De acuerdo al análisis del conjunto de datos y a la problemática a resolver, planteada para esta práctica, vamos a trabajar con los datos biográficos de los jugadores que juegan en la posición de bateadores además de sus datos estadísticos y su salario. Para esto vamos a realizar una fusión horizontal y vertical de los archivos: master.csv, batting.csv, salaries.csv; mediante los identificadores: “playerID” que relaciona cada fuente con el jugador y "yearID" vincula los años de los diferentes datos de rendimiento y el salario correspondiente.
+De acuerdo al análisis del conjunto de datos y a la problemática a resolver, planteada para esta práctica, vamos a trabajar con los datos biográficos de los jugadores que juegan en la posición de bateadores además de sus datos estadísticos de posición y campo, además de su salario. Para esto vamos a realizar una fusión horizontal y vertical de los archivos: master.csv, batting.csv,  fielding.csv y salaries.csv.
+
+* Para unir master.csv y batting.csv haremos uso del identificador “playerID” para la unión de los datos.
+* Para unir el conjunto de datos resultante  usamos los identificadores "yearID", "stint", "teamID",  "lgID" que vinculan otras claves primarias además del salario correspondiente.
 
 ```{r}
 # Lectura de fuente de datos necesitadas
@@ -63,7 +66,6 @@ colnames(dataPlayer)
 ```
 
 La fuente de datos **Master.csv** tiene las siguientes dimensiones: 18846 registros y 24 columnas.
-
 
 
 ```{r}
@@ -79,6 +81,20 @@ La fuente de datos **Batting.csv** tiene las siguientes dimensiones: 101332 regi
 
 ```{r}
 # Lectura de fuente de datos necesitadas
+dataFielding <- read.csv('../dataset/Fielding.csv')
+print("[*] Dimensiones")
+dim(dataFielding)
+# Es necesario cambiar algunos nombres por coincidencia, les añadimos f.
+names (dataFielding) = c("playerID", "yearID","stint","teamID", "lgID", "POS",   "f.G", "GS", "InnOuts","PO", "A", "E" , "DP", "PB", "WP", "f.SB", "f.CS", "ZR")
+print("[*] Nombre Columnas")
+colnames(dataFielding)
+```
+
+La fuente de datos **Fielding.csv** tiene las siguientes dimensiones: 170526    registros y 18 columnas.
+
+
+```{r}
+# Lectura de fuente de datos necesitadas
 dataSalaries <- read.csv('../dataset/Salaries.csv')
 print("[*] Dimensiones")
 dim(dataSalaries)
@@ -90,183 +106,204 @@ La fuente de datos **Salaries.csv** tiene las siguientes dimensiones: 25575 regi
 
 ```{r}
 # Integración fuentes
-mergeCols <- c("playerID", "yearID")
+mergeCols2 <- c("playerID", "yearID", "teamID",   "lgID")
+mergeCols3 <- c("playerID", "yearID", "stint", "teamID",   "lgID")
 
 datasetBateadores <- merge(dataPlayer,dataSalaries,by="playerID")
-datasetBateadores <- merge(dataBatting,datasetBateadores,by=mergeCols)
+datasetBateadores <- merge(datasetBateadores,dataFielding,by=mergeCols2)
+datasetBateadores <- merge(datasetBateadores,dataBatting,by=mergeCols3)
+
 print("[*] Dimensiones")
 dim(datasetBateadores)
 print("[*] Nombre Columnas")
 colnames(datasetBateadores)
 ```
 
-El dataset final tiene las siguientes dimensiones: 27385 registros y 48 columnas.
+El dataset final tiene las siguientes dimensiones: 46836 registros y 59 columnas.
 
 ```{r}
 head(datasetBateadores)
 ```
-
 
 ## Selección de datos y reducción de dimensionalidad 
 
-Una vez analizado el dataset final, se puede identificar datos perdidos (N.D) para los años iniciales, por lo tanto, para nuestro objetivo, vamos a seleccionar todos los jugadores de posición bateadores correspondiente a los años 2014, 2015, siendo estos los datos más actuales disponibles y como resultado tenemos un conjunto de datos de alta calidad sin valores perdidos. 
+Una vez analizado el dataset final, se puede identificar datos perdidos (N.D) para los años iniciales, por lo tanto, para nuestro objetivo, vamos a seleccionar todos los jugadores de posición bateadores a partir del año 1995, mejorando de alguna manera la calidad del conjunto de datos.
 
 ```{r}
-# Selección de instancias de acuerdo a los anios 2014,2015
-datasetBateadores.10 <- filter(datasetBateadores, yearID>=2005)
-datasetBateadores.2005 <- filter(datasetBateadores, yearID==2005)
-datasetBateadores <- filter(datasetBateadores, yearID>2013 & yearID<2016)
-head(datasetBateadores)
+# Selección de instancias a partir del año 1995
+datasetBateadores.20 <- filter(datasetBateadores, yearID>=1995)
+head(datasetBateadores.20)
 ```
 
-Como se observa en la sección anterior, el dataset contiene una gran cantidad de atributos, por lo tanto aplicamos la técnica de selección de subconjuntos de atributos para seleccionar datos de interés. Primeramente los atributos correspondientes a los datos biográficos de cada jugar, seleccionaremos manualmente, identificando cuales son más relevantes para nuestro estudio *(yearID, playerID, nameFirst, nameLast, birthCountry, bats, birthYear, debut)*, ademas eliminaremos atributos de códigos *(stint, teamID.x, lgID.x)* que no tiene significado en nuestro análisis. Como resultado de esta selección tendremos el siguiente dataset:
-
-
-```{r}
-# Selección de atributos de interés de datos biográficos del jugador
-datasetBateadores <-select(datasetBateadores, 'yearID','playerID','nameFirst', 'nameLast', 
-                           'birthCountry','bats','birthYear','debut','G', 'AB', 'R', 'H', 
-                           'X2B', 'X3B', 'HR', 'RBI', 'SB', 'CS', 'BB', 'SO', 'IBB', 'HBP', 
-                           'SH', 'SF', 'GIDP','salary');
-head(datasetBateadores)
-```
-
+Como se observa en la sección anterior, el dataset contiene una gran cantidad de atributos, por lo tanto aplicamos la técnica de selección de subconjuntos de atributos para seleccionar datos de interés. Primeramente los atributos correspondientes a los datos biográficos de cada jugador, seleccionaremos manualmente, identificando cuales son más relevantes para nuestro estudio *(yearID, playerID, nameGiven, nameLast, birthCountry, bats, birthYear, debut)* y eliminaremos los siguientes atributos *(birthMonth , birthDay,    birthState, birthCity, deathYear, deathMonth, deathDay, deathCountry, deathState, deathCity, weight, height, finalGame, retroID,  bbrefID,  stint, teamID, lgID)* que no aportan significado en nuestro análisis.
 
 Los campos **birthYear** y **debut** son transformados a la edad del jugador de acuerdo al año de la observación y al número de años de experiencia del jugador respectivamente. Todo este proceso se presenta a continuación:
 
 ```{r}
 # Transformar fecha debut en anios de experiencia
-datasetBateadores$Exp<-datasetBateadores$yearID - as.numeric(format(as.Date(datasetBateadores$debut, format="%Y-%m-%d"),"%Y"))
+datasetBateadores.20$Exp<-datasetBateadores.20$yearID - as.numeric(format(as.Date(datasetBateadores.20$debut, format="%Y-%m-%d"),"%Y"))
 # Transformar anio de nacimiento por edad
-datasetBateadores$Edad<-datasetBateadores$yearID - datasetBateadores$birthYear
-# Eliminamos columnas 'birthYear','debut'
-datasetBateadores <- datasetBateadores[ -c(7:8) ]
-
-head(datasetBateadores)
+datasetBateadores.20$Edad<-datasetBateadores.20$yearID - datasetBateadores.20$birthYear
+head(datasetBateadores.20)
 ```
 
-Con respecto a la selección de los atributos numéricos que representan a los datos estadísticos de rendimiento de un jugador, calcularemos los diferentes coeficientes de correlación entre parejas de variables, identificando cual de ellas están asociadas. Si existen parejas de variables con coeficientes de correlación superior al 80% descartamos una de las dos variables. A continuación se presenta la matriz de correlación y en base a dicha matriz la selección de atributos.
+Después de este análisis, tenemos como resultado el siguiente dataset con los atributos necesitados:
 
-```{r fig.align='center', message=FALSE, warning=FALSE, fig.width=14, fig.height=14}
+```{r}
+# Selección de atributos de interés para el dataset final
+ datasetBateadores.20 <-select(datasetBateadores.20, "playerID", "yearID", "birthCountry",  "nameLast", "nameGiven", 
+                            "salary", "f.G", "InnOuts", "PO",  "A", "E", "DP", "G", "AB",  "R", "H", "X2B", 
+                            "X3B", "HR", "RBI", "SB",  "CS", "BB", "SO", "IBB", "HBP", "SH", "SF", "GIDP", 
+                            "Edad", "Exp" );
+print("[*] Dimensiones")
+dim (datasetBateadores.20)
+head(datasetBateadores.20)
+```
+
+
+Con respecto a la selección de los atributos numéricos que representan a los datos estadísticos de rendimiento de un jugador, calcularemos los diferentes coeficientes de correlación entre parejas de variables, identificando cual de ellas están asociadas. Si existen parejas de variables con coeficientes de correlación superior al 85% descartamos una de las dos variables. A continuación se presenta la matriz de correlación y en base a dicha matriz la selección de atributos.
+
+```{r fig.align='center', message=FALSE, warning=FALSE, fig.width=20, fig.height=20}
 library(psych)
 
-corPlot(datasetBateadores[,7:26], cex = 0.7, main = "Matriz de correlación")
+corPlot(datasetBateadores.20[,6:31], cex = 0.8, main = "Matriz de correlación")
 
 ```
 
-En base a la matriz de correlación han identificado los siguientes atributos correlacionados fuertemente en base al coeficiente superior a 80% y que serán eliminados: AB, R, H, X2B, RBI, BB, SO, Edad. 
+En base a la matriz de correlación se han identificado los siguientes atributos correlacionados fuertemente en base al coeficiente superior a 85% y que serán eliminados: f.G,H,G,R,X2B,RBI,BB,SO,Edad. 
 
 ```{r}
 # Selección de atributos de interés de datos de rendimiento 
-datasetBateadores <-select(datasetBateadores, 'yearID','playerID','nameFirst', 'nameLast', 
-                           'birthCountry','bats','Exp','G', 'X3B', 'HR', 'SB', 'CS', 'IBB', 
-                           'HBP', 'SH', 'SF', 'GIDP','salary');
-head(datasetBateadores, n =10)
+datasetBateadores.20 <-select(datasetBateadores.20,"playerID", "yearID", "birthCountry", "nameLast", "nameGiven","InnOuts","PO" ,  "A" ,"E" , "DP", "AB"  , "X3B" ,"HR" ,"SB" ,"CS" ,  "IBB" ,"HBP"  ,"SH", "SF", "GIDP", "Exp", "salary" );
+head(datasetBateadores.20, n =10)
+
 ```
+
 
 A continuación, se va a detallar cada uno de los atributos que contiene el dataset final.
 
-* yearID: Año de recopilación de datos de desempeño y salario. 
-
 * playerID: Identificador del jugador.
 
-* nameFirst: Nombre del jugador.
-
-* nameLast: Apellido del jugador.
+* yearID: Año de recopilación de datos de desempeño y salario. 
 
 * birthCountry: País de nacimiento del jugador.
 
-* bats: Indica si el jugador es diestro o zurdo para coger el bat.
+* nameLast: Apellido del jugador.
 
-* exp: Anõs de experiencia desde su debut.
+* nameGiven: Nombre del jugador.
 
-* G: Número de juegos a lo largo de la carrera.
+* InnOuts: Tiempo jugado por el jugador en el campo expresado en outs en su posición como Fielding.
 
-* X3B: Número de veces que avanzó a tercera base el jugador.
+* PO: número de veces que el jugador elimina a un corredor (out) en su posición como Fielding.
 
-* HR: Número de homerun.
+* A:  número de asistencias durante un out en su posición como Fielding.
 
-* SB: Número de bases robadas por el jugador.
+* E: Número de veces que el jugador erró al realizar una jugada en su posición como Fielding.
 
-* CS: Número de eliminaciones por robar una base.
+* DP: Número de dobles jugadas que participó el jugador en su posición como Fielding.
 
-* IBB: Número de bases por bolas intencionales.
+* AB: Número de veces que el jugador fue al  bate en su posición como bateador.
 
-* HBP: Número de veces que fue golpeado por los lanzamientos de pitcher.
+* X3B: Número de veces que avanzó a tercera base el jugador en su posición como bateador.
 
-* SH: Números de sacrificios.
+* HR: Número de homerun en su posición como bateador.
 
-* SF: Número de elevados de sacrificio.
+* SB: Número de bases robadas por el jugador en su posición como bateador.
 
-* GIDP: Núemero de Bateos para dobleplay.
+* CS: Número de eliminaciones por robar una base en su posición como bateador.
+
+* IBB: Número de bases por bolas intencionales en su posición como bateador.
+
+* HBP: Número de veces que fue golpeado por los lanzamientos de pitcher en su posición como bateador.
+
+* SH: Números de sacrificios en su posición como bateador.
+
+* SF: Número de vuelos de sacrificio en su posición como bateador.
+
+* GIDP: Número de bateos para dobleplay en su posición como bateador.
+
+* Exp: Anõs de experiencia desde su debut.
 
 * Salary: Salario anual del jugador.
 
-
-Una vez realizado la selección de datos y la reducción de dimensionalidad, se ha descubierto que para ciertos jugadores del datastet tienen más de un registro para el mismo año, de acuerdo a  la documentación de Sea Lahman, estos datos se presentan de esa forma ya que corresponden a los datos estadísticos de un jugador que estuvo en diferentes equipos o ligas para el mismo año. Para solucionar esto, se va a fusionar los registros de ese jugador en una sola fila y los datos estadísticos de rendimiento tendrán la suma de sus valores y para los años de experiencia y salario, como sus valores son iguales en los dos registros, solamente se escoge uno de ellos.
-
-```{r}
-# Se agrupan registros para el mismo jugador calculando la media de los datos estadisticos
-datasetBateadores <- aggregate(cbind(G, X3B, HR, SB, CS, IBB, HBP, SH, SF, GIDP) ~ yearID 
-                               + playerID + nameFirst +  nameLast +  birthCountry + bats 
-                               + Exp + salary, data = datasetBateadores, FUN = sum)
-# Ordenar por idJugador
-datasetBateadores <- datasetBateadores[order(datasetBateadores$playerID),]
-head(datasetBateadores, n=10)
-```
 
 ## Tipos de variables
 
 Después de haber seleccionado las observaciones y los atributos para el conjunto de datos a trabajar, se verificará los tipos de datos de las diferentes columnas que conforman en el dataset, mediante la función de R **str()**, como se ve a continuación:
 
 ```{r}
-str(datasetBateadores)
+str(datasetBateadores.20)
 ```
 
-De acuerdo a la salida de esta función, tenemos que los datos de rendimimento que se van a analizar son de tipo entero, listos para los análisis posteriores. Solo la variable Exp será trasformada de numérica a entera.
+De acuerdo a la salida de esta función, tenemos que los datos de rendimiento y datos estadísticos de campo que se van a analizar son de tipo entero, listos para los análisis posteriores. Solo la variable Exp será transformada de numérica a entera.
+
 
 ```{r}
-datasetBateadores$Exp <- as.integer(datasetBateadores$Exp)
-head(datasetBateadores, n=10)
+datasetBateadores.20$Exp <- as.integer(datasetBateadores.20$Exp)
+head(datasetBateadores.20, n=10)
 ```
 
 # Limpieza de datos
 
 ## Detección y tratamiento de valores perdidos
 
-EL dataset final, no contiene datos perdidos o no definidos ya que en secciones anteriores se filtraron los datos para los años mas actuales debido a que los años más antiguos tenían un gran porcentaje de datos no definidos.
+El dataset final, pese a descartar los primeros años, podemos verificar que aún existen datos perdidos o no definidos. Para esto, identificamos que campos contienen NA y vamos a imputarlos con el valor 0 indicando que para ese atributo no se tiene datos estadísticos recogidos.
 
 ```{r}
 # Valores perdidos determinados por N.A
-colSums(is.na(datasetBateadores))
+colSums(is.na(datasetBateadores.20))
 ```
-
-Sin embargo, después de realizar una inspección al conjunto de datos, se ha identificado un caso especial, donde existen registros con valor 0 en las variables de rendimiento **X3B, HR, SB, CS, IBB, HBP, SH, SF, GIDP** y la variable salario posse un valor. Este caso es un problema, debido a que una de nuestras preguntas iniciales consisten en determinar la relación del las variables de rendimiento con el valor del salario del jugador. Para solucionar esto, se va a implementar un proceso de imputación para estos valores 0 de todas las variables antes mencionadas mediante el algoritmo del vecino más cercano KNN.
-
-El proceso consiste en los siguientes pasos:
-
-* Asignar el valor *NA* a las variables de rendimiento con valor 0 cuyos registros cumplan la condición:  X3B == 0 & HR == 0 & SB == 0 & CS == 0 & IBB == 0 & HBP == 0 & SH == 0 & SF == 0 & GIDP == 0.
-
-* Imputación de valores *NA* haciendo uso del modelo KNN, rellenando los valores *NA*, en base a las demás observaciones del dataset, promediando todos los puntos más cercanos. 
-
-Esta implementación se puede observar a continuación, que consta de la identificación del número de casos con datos de rendimiento en 0, además se inspeccionan las variables salario y G para ver si poseen valores en 0 y finalmente la inputación de valores de acuerdo a lo panteado.
-
 
 
 ```{r}
+# Reempalzar NA con valor 0
+datasetBateadores.20$InnOuts[is.na(datasetBateadores.20$InnOuts)] <- 0
+datasetBateadores.20$PO[is.na(datasetBateadores.20$PO)] <- 0
+datasetBateadores.20$A[is.na(datasetBateadores.20$A)] <- 0
+datasetBateadores.20$E[is.na(datasetBateadores.20$E)] <- 0
+datasetBateadores.20$DP[is.na(datasetBateadores.20$DP)] <- 0
+datasetBateadores.20$AB[is.na(datasetBateadores.20$AB)] <- 0
+datasetBateadores.20$X3B[is.na(datasetBateadores.20$X3B)] <- 0
+datasetBateadores.20$HR[is.na(datasetBateadores.20$HR)] <- 0
+datasetBateadores.20$SB[is.na(datasetBateadores.20$SB)] <- 0
+datasetBateadores.20$CS[is.na(datasetBateadores.20$CS)] <- 0
+datasetBateadores.20$IBB[is.na(datasetBateadores.20$IBB)] <- 0
+datasetBateadores.20$HBP[is.na(datasetBateadores.20$HBP)] <- 0
+datasetBateadores.20$SH[is.na(datasetBateadores.20$SH)] <- 0
+datasetBateadores.20$SF[is.na(datasetBateadores.20$SF)] <- 0
+datasetBateadores.20$GIDP[is.na(datasetBateadores.20$GIDP)] <- 0
+
+```
+
+Verificamos que los NA efectivamente han sido reemplazados.
+
+```{r}
+# Valores perdidos determinados por N.A
+colSums(is.na(datasetBateadores.20))
+```
+
+
+Una vez realizado este proceso, después de realizar una inspección al conjunto de datos, se ha identificado un caso especial, donde existen registros con valor 0 en las variables técnicas **InnOuts,PO ,A ,E,DP,AB, X3B, HR, SB, CS, IBB, HBP, SH, SF, GIDP** y la variable salario posee un valor. Este caso es un problema, debido a que una de nuestras preguntas iniciales consisten en determinar la relación del las variables de rendimiento con el valor del salario del jugador. Para solucionar esto, se va a implementar un proceso de imputación para estos valores 0 de todas las variables antes mencionadas mediante el algoritmo del vecino más cercano KNN.
+
+El proceso consiste en los siguientes pasos:
+
+* Asignar el valor *NA* a las variables de rendimiento con valor 0 cuyos registros cumplan la condición: InnOuts == 0 & PO == 0 & A == 0 & E == 0 & DP == 0 & AB == 0 &  X3B == 0 & HR == 0 & SB == 0 & CS == 0 & IBB == 0 & HBP == 0 & SH == 0 & SF == 0 & GIDP == 0.
+
+* Imputación de valores *NA* haciendo uso del modelo KNN, rellenando los valores *NA*, en base a las demás observaciones del dataset, promediando todos los puntos más cercanos. 
+
+Esta implementación se puede observar a continuación, que consta de la identificación del número de casos con datos de rendimiento en 0, además se inspecciona la variable salario  ver si poseen valores en 0 y finalmente la imputación de valores de acuerdo a lo planteado.
+
+```{r}
 # Verificamos datos de salario en 0
-dfSalarioCero <- filter(datasetBateadores, salary==0)
-
-# Verificamos datos de G en 0
-dfGCero <- filter(datasetBateadores, G==0)
-
+dfSalarioCero <- filter(datasetBateadores.20, salary==0)
 
 # Verificamos datos de rendimiento en 0
-dfEstadisticasCero <- filter(datasetBateadores, X3B == 0 & HR == 0 & SB == 0 & CS == 0 & IBB == 0 & HBP == 0 & SH == 0 & SF == 0 & GIDP == 0 )
+dfEstadisticasCero <- filter(datasetBateadores.20, InnOuts == 0 & PO == 0 & A == 0 & E == 0 
+                             & DP == 0 & AB==0 &  X3B == 0 & HR == 0 & SB == 0 & CS == 0 
+                             & IBB == 0 & HBP == 0 & SH == 0 & SF == 0 & GIDP == 0 )
 
 # cosntruye dataframe de resultados
-resultados <-data.frame(c(nrow(dfEstadisticasCero), nrow(dfSalarioCero), nrow(dfGCero)), 
-                        c('DATOS RENDIMIENTO EN 0', 'DATOS SALARIOS EN 0', 'DATOS G EN 0'))
+resultados <-data.frame(c(nrow(dfEstadisticasCero), nrow(dfSalarioCero)),c('DATOS RENDIMIENTO EN 0', 'DATOS SALARIOS EN 0'))
 resultados <- setNames(resultados, c('Nro. Registros', 'Descripción'))
 resultados
 ```
@@ -274,88 +311,125 @@ resultados
 
 ```{r}
 # Obtener indices de los datos de rendimiento tengan todos 0
-indicesFiltros <- which(datasetBateadores$X3B == 0 & datasetBateadores$HR == 0 & 
-                          datasetBateadores$SB == 0 & datasetBateadores$CS == 0 & 
-                          datasetBateadores$IBB == 0 & datasetBateadores$HBP == 0 & 
-                          datasetBateadores$SH == 0 & datasetBateadores$SF == 0 & 
-                          datasetBateadores$GIDP == 0)
+indicesFiltros <- which(datasetBateadores.20$InnOuts == 0 & datasetBateadores.20$PO == 0 & 
+                          datasetBateadores.20$A == 0 & datasetBateadores.20$E == 0 &
+                          datasetBateadores.20$DP == 0 &  datasetBateadores.20$AB == 0 &
+                          datasetBateadores.20$X3B == 0 & 
+                          datasetBateadores.20$HR == 0 & datasetBateadores.20$SB == 0 & 
+                          datasetBateadores.20$CS == 0 & datasetBateadores.20$IBB == 0 & 
+                          datasetBateadores.20$HBP == 0 & datasetBateadores.20$SH == 0 & 
+                          datasetBateadores.20$SF == 0 & datasetBateadores.20$GIDP == 0)
+
 # Reemplazar valores de 0 por NA para los indices extraídos
-datasetBateadores$X3B[indicesFiltros] <- NA
-datasetBateadores$HR[indicesFiltros] <- NA
-datasetBateadores$SB[indicesFiltros] <- NA
-datasetBateadores$CS[indicesFiltros] <- NA
-datasetBateadores$IBB[indicesFiltros] <- NA
-datasetBateadores$HBP[indicesFiltros] <- NA
-datasetBateadores$SH[indicesFiltros] <- NA
-datasetBateadores$SF[indicesFiltros] <- NA
-datasetBateadores$GIDP[indicesFiltros] <- NA
+datasetBateadores.20$InnOuts[indicesFiltros] <- NA
+datasetBateadores.20$PO[indicesFiltros] <- NA
+datasetBateadores.20$A[indicesFiltros] <- NA
+datasetBateadores.20$E[indicesFiltros] <- NA
+datasetBateadores.20$DP[indicesFiltros] <- NA
+datasetBateadores.20$AB[indicesFiltros] <- NA
+datasetBateadores.20$X3B[indicesFiltros] <- NA
+datasetBateadores.20$HR[indicesFiltros] <- NA
+datasetBateadores.20$SB[indicesFiltros] <- NA
+datasetBateadores.20$CS[indicesFiltros] <- NA
+datasetBateadores.20$IBB[indicesFiltros] <- NA
+datasetBateadores.20$HBP[indicesFiltros] <- NA
+datasetBateadores.20$SH[indicesFiltros] <- NA
+datasetBateadores.20$SF[indicesFiltros] <- NA
+datasetBateadores.20$GIDP[indicesFiltros] <- NA
+
 # Verificamos valores NA
-colSums(is.na(datasetBateadores))
+colSums(is.na(datasetBateadores.20))
 ```
 
 ```{r}
 # Imputación de valores perdidos
-datasetBateadores <- kNN(datasetBateadores)
-head(datasetBateadores,n=10)
+datasetBateadores.20 <- kNN(datasetBateadores.20, k = 20)
+head(datasetBateadores.20,n=10)
 ```
 
 La función utilizada para imputar valores adiciona al dataset unas nuevas columnas de tipo booleanas indicando true o false para el proceso KNN. Por lo tanto, eliminaremos estas columnas de nuestra dataset final.
 
 ```{r}
 # Eliminar columnas agregagdas por el método KNN usado para imputación
-datasetBateadores <- datasetBateadores[ -c(19:36) ]
-head(datasetBateadores, n=10)
+ datasetBateadores.20 <- datasetBateadores.20[ -c(23:44) ]
+ head(datasetBateadores.20, n=15)
 ```
 
+Una vez realizado la limpieza de datos, se ha descubierto que para ciertos jugadores del datastet tienen más de un registro para el mismo año, de acuerdo a  la documentación de Sea Lahman, estos datos se presentan de esa forma ya que corresponden a los datos estadísticos de un jugador que estuvo en diferentes equipos o ligas para el mismo año. Para solucionar esto, se va a fusionar los registros de ese jugador en una sola fila y los datos estadísticos de rendimiento y datos de campo tendrán la suma de sus valores y para los años de experiencia y salario, como sus valores son iguales en los dos registros, solamente se escoge uno de ellos.
+
+
+```{r}
+# Se agrupan registros para el mismo jugador calculando la media de los datos estadisticos
+datasetBateadores.20 <- aggregate(cbind(InnOuts,PO ,A, E, DP, AB, X3B, HR,SB,CS,IBB,HBP,SH, SF, GIDP) ~ yearID  + playerID +   nameLast +  birthCountry + Exp + salary, data = datasetBateadores.20, FUN = sum)
+# Ordenar por idJugador
+datasetBateadores.20 <- datasetBateadores.20[order(datasetBateadores.20$playerID),]
+head(datasetBateadores.20, n=15)
+```
 
 ## Identificación y tratamiento de valores extremos.
 
 Para nuestro dataset final vamos a identificar si existen valores extremos sobre las variables de tipo numérico, mediante gráficas de caja y bigote para cada variable implicada. A continuación se presentan las gŕaficas y los resultados obtenidos.
 
-```{r fig.width=10, fig.height=15}
-par(mfrow=c(6,2))
-boxplot(datasetBateadores$G, main="BoxPlot G", col="green")
-outliersG <- boxplot.stats(datasetBateadores$G)$out
+```{r fig.width=10, fig.height=25}
+ par(mfrow=c(8,2))
+ boxplot(datasetBateadores.20$InnOuts, main="BoxPlot InnOuts", col="green")
+ outliersInnOuts <- boxplot.stats(datasetBateadores.20$InnOuts)$out
+ 
+ boxplot(datasetBateadores.20$PO, main="BoxPlot PO", col="blue")
+ outliersPO <- boxplot.stats(datasetBateadores.20$PO)$out
+ 
+ boxplot(datasetBateadores.20$A, main="BoxPlot A", col="red")
+ outliersA <- boxplot.stats(datasetBateadores.20$A)$out
+ 
+ boxplot(datasetBateadores.20$E, main="BoxPlot E", col="brown")
+ outliersE <- boxplot.stats(datasetBateadores.20$E)$out
+ 
+ boxplot(datasetBateadores.20$DP, main="BoxPlot DP", col="yellow")
+ outliersDP <- boxplot.stats(datasetBateadores.20$DP)$out
+ 
+ boxplot(datasetBateadores.20$AB, main="BoxPlot AB", col="gray")
+ outliersAB <- boxplot.stats(datasetBateadores.20$AB)$out
+ 
+ boxplot(datasetBateadores.20$X3B, main="BoxPlot X3B", col="black")
+ outliersX3B <- boxplot.stats(datasetBateadores.20$X3B)$out
+ 
+ boxplot(datasetBateadores.20$HR, main="BoxPlot HR", col="green3")
+ outliersHR <- boxplot.stats(datasetBateadores.20$HR)$out
+ 
+ boxplot(datasetBateadores.20$SB, main="BoxPlot SB", col="cyan")
+ outliersSB <- boxplot.stats(datasetBateadores.20$SB)$out
+ 
+ boxplot(datasetBateadores.20$CS, main="BoxPlot CS", col="magenta")
+ outliersCS <- boxplot.stats(datasetBateadores.20$CS)$out
 
-boxplot(datasetBateadores$X3B, main="BoxPlot X3B", col="blue")
-outliersX3B <- boxplot.stats(datasetBateadores$X3B)$out
+ boxplot(datasetBateadores.20$IBB, main="BoxPlot IBB", col="pink")
+ outliersIBB <- boxplot.stats(datasetBateadores.20$IBB)$out
 
-boxplot(datasetBateadores$HR, main="BoxPlot HR", col="red")
-outliersHR <- boxplot.stats(datasetBateadores$HR)$out
+ boxplot(datasetBateadores.20$HBP, main="BoxPlot HBP", col="orange")
+ outliersHBP <- boxplot.stats(datasetBateadores.20$HBP)$out
 
-boxplot(datasetBateadores$SB, main="BoxPlot SB", col="brown")
-outliersSB <- boxplot.stats(datasetBateadores$SB)$out
+ boxplot(datasetBateadores.20$SH, main="BoxPlot SH", col="green")
+ outliersSH <- boxplot.stats(datasetBateadores.20$SH)$out
 
-boxplot(datasetBateadores$CS, main="BoxPlot CS", col="yellow")
-outliersCS <- boxplot.stats(datasetBateadores$CS)$out
+ boxplot(datasetBateadores.20$SF, main="BoxPlot SF", col="blue")
+ outliersSF <- boxplot.stats(datasetBateadores.20$SF)$out
 
-boxplot(datasetBateadores$IBB, main="BoxPlot IBB", col="gray")
-outliersIBB <- boxplot.stats(datasetBateadores$IBB)$out
-
-boxplot(datasetBateadores$HBP, main="BoxPlot HBP", col="black")
-outliersHBP <- boxplot.stats(datasetBateadores$HBP)$out
-
-boxplot(datasetBateadores$SH, main="BoxPlot SH", col="green3")
-outliersSH <- boxplot.stats(datasetBateadores$SH)$out
-
-boxplot(datasetBateadores$SF, main="BoxPlot SF", col="cyan")
-outliersSF <- boxplot.stats(datasetBateadores$SF)$out
-
-boxplot(datasetBateadores$GIDP, main="BoxPlot GIDP", col="magenta")
-outliersGIDP <- boxplot.stats(datasetBateadores$GIDP)$out
-
-boxplot(datasetBateadores$Exp, main="BoxPlot Exp", col="pink")
-outliersExp <- boxplot.stats(datasetBateadores$Exp)$out
-
-boxplot(datasetBateadores$salary, main="BoxPlot salary", col="orange")
-outlierssalary <- boxplot.stats(datasetBateadores$salary)$out
-
+ boxplot(datasetBateadores.20$GIDP, main="BoxPlot GIDP", col="red")
+ outliersGIDP <- boxplot.stats(datasetBateadores.20$GIDP)$out
+ 
+ boxplot(datasetBateadores.20$salary, main="BoxPlot salary", col="red")
+ outliersSalary <- boxplot.stats(datasetBateadores.20$salary)$out
 ```
 
 De acuerdo a los gráficos, podemos identificar el número de valores atípicos para cada atributo.
 
 ```{r}
-resultadosOutliersDF <-data.frame(c(length(outliersG),
+resultadosOutliersDF <-data.frame(c(length(outliersInnOuts),
+                                    length(outliersPO),
+                                    length(outliersA),
+                                    length(outliersE),
+                                    length(outliersDP),
+                                    length(outliersAB),
                                     length(outliersX3B),
                                     length(outliersHR),
                                     length(outliersSB),
@@ -365,10 +439,14 @@ resultadosOutliersDF <-data.frame(c(length(outliersG),
                                     length(outliersSH),
                                     length(outliersSF),
                                     length(outliersGIDP),
-                                    length(outliersExp),
-                                    length(outlierssalary)
+                                    length(outliersSalary)
                                     ),
-                        c('VARIABLE G',
+                        c('VARIABLE InnOuts',
+                          'VARIABLE PO',
+                          'VARIABLE A',
+                          'VARIABLE E',
+                          'VARIABLE DP',
+                          'VARIABLE AB',
                           'VARIABLE X3B',
                           'VARIABLE HR',
                           'VARIABLE SB',
@@ -378,48 +456,20 @@ resultadosOutliersDF <-data.frame(c(length(outliersG),
                           'VARIABLE SH',
                           'VARIABLE SF',
                           'VARIABLE GIDP',
-                          'VARIABLE Exp',
-                          'VARIABLE salary'
+                          'VARIABLE Salary'
                           )
                         )
 resultadosOutliersDF <- setNames(resultadosOutliersDF, c('Nro. Valores Atípicos', 'Variable'))
 resultadosOutliersDF
 ```
 
-El tratamiento que hemos decidido realizar sobre los valores atípicos es la eliminación de las observaciones que contengan esos valores. Se ha tomado esta decisión para evitar sesgos dentro de nuestro análisis, ya que este se basa directamente sobres estas variables. El proceso es implementado a continuación.
-
-```{r}
-# reemplazo de outliers con NA  y posterior eliminación
-outliersReplace <- function(vectorOutliers, data){
-  for (val in vectorOutliers)
-  {
-    data[data==val] <- NA
-  }
-  data
-}
- 
-datasetBateadores$X3B <- outliersReplace(outliersX3B, datasetBateadores$X3B)
-datasetBateadores$HR <- outliersReplace(outliersHR, datasetBateadores$HR)
-datasetBateadores$SB <- outliersReplace(outliersSB, datasetBateadores$SB)
-datasetBateadores$CS <- outliersReplace(outliersCS, datasetBateadores$CS)
-datasetBateadores$IBB <- outliersReplace(outliersIBB, datasetBateadores$IBB)
-datasetBateadores$HBP <- outliersReplace(outliersHBP, datasetBateadores$HBP)
-datasetBateadores$SH <- outliersReplace(outliersSH, datasetBateadores$SH)
-datasetBateadores$SF <- outliersReplace(outliersSF, datasetBateadores$SF)
-datasetBateadores$GIDP <- outliersReplace(outliersGIDP, datasetBateadores$GIDP)
-datasetBateadores$Exp <- outliersReplace(outliersExp, datasetBateadores$Exp)
-datasetBateadores$salary <- outliersReplace(outlierssalary, datasetBateadores$salary)
-
-datasetBateadores <- na.omit(datasetBateadores) 
-
-
-```
-
+Una vez identificados los valores extremos, hemos decidido trabajar con estos datos debido a que al ser datos estadísticos técnicos de un jugador a lo largo de 20 años es posible que en ciertos años el jugador tuvo excelentes números en su rendimiento. Por lo tanto al ser estos atributos predictores para la variable independiente salary vamos a mantenerlos y en los análisis siguientes verificar su significancia.
 
 Con esto hemos concluido con la fase de pre-procesamiento de los datos. A continuación se examina la dimensión total del dataset final.
+
 ```{r}
-# Dimension final del dataset
-dim(datasetBateadores)
+# Dataset final
+dim(datasetBateadores.20)
 ```
 
 
