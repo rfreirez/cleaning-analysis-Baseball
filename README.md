@@ -24,4 +24,4 @@ MAIN
 
 * **code/cleaning-analysis.rmd** esta plantilla está conformada con el código R dividido en secciones y con su respectiva descripción.
 * **dataset/** Conjunto de datos de jugadores de béisbol extraídos de la página web kaggle.
-* **PDF/** Documento formato HTML generado por el archivo RMD antes mencionado.
+* **documento_final/** Documento formato HTML generado por el archivo RMD antes mencionado.
