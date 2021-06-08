@@ -1,7 +1,7 @@
 ---
 title: 'Práctica 2: Limpieza y análisis de datos'
 author: "Renán Freire, Manuel García"
-date: "20/05/2021"
+date: "07/06/2021"
 output:
   html_document: 
     number_sections: yes
@@ -15,6 +15,7 @@ output:
 ```{r echo=FALSE, results=FALSE, message=FALSE, warning=FALSE}
 library(dplyr)
 library(VIM)
+library(psych)
 ```
 
 # Descripción del dataset
@@ -475,81 +476,143 @@ dim(datasetBateadores.20)
 
 # Análisis de los datos.
 
-```{r}
+## Selección de los grupos de datos que se quieren analizar/comparar
 
-datasetBateadores <- filter(datasetBateadores, yearID==2015)
+Para nuestros análisis posteriores, seleccionamos seleccionamos las siguientes muestras.
 
-head(datasetBateadores)
-str(datasetBateadores)
-```
+### Selección de jugadores para visualizaciones
 
-
-## Selección de los grupos de datos que se quieren analizar/comparar (planificación de los análisis a aplicar).
-Para nuestro contraste de hipótesis posterior, seleccionamos dos muestras sobre los jugadores del 2014, una con los nacidos en Estados Unidos, USA y otra con los nacidos en el Resto del Mundo RM
+Creamos el campo Nacionalidad y realizamos algunas agrupaciones que nos convienen para las representaciones posteriores. 
 
 ```{r fig.align='center', message=FALSE, warning=FALSE, fig.width=14, fig.height=14}
-library(psych)
 
-#head(datasetBateadores)
-#str(datasetBateadores)
+nacionalidad <- vector() # Se crea un vector vacío
+nacionalidad[datasetBateadores.20$birthCountry=='USA'] <- 'USA'
+nacionalidad[datasetBateadores.20$birthCountry!='USA'] <- 'RM'
+datasetBateadores.20$nacionalidad <- nacionalidad
 
-# Creamos las muestras de jugadores de USA y RM para 2015 
-bat.usa <-datasetBateadores %>%
+datasetBateadores.M2000 <- filter(datasetBateadores.20, yearID>=2000)
+datasetBateadores.2000 <- filter(datasetBateadores.20, yearID>=2000)
+datasetBateadores.2015 <- filter(datasetBateadores.20, yearID>=2015)
+```
+
+### Selección de datos para Hipótesis de Contraste sobre el salario
+
+En este caso realizamos una selección que nos sirva para contrastar si el salario de los jugadores de USA es significativamente diferente al de los jugadores del Resto del Mundo RM en el año 2015
+
+```{r fig.align='center', message=FALSE, warning=FALSE, fig.width=14, fig.height=14}
+# Seleccionamos los jugadores del 2015
+datasetBateadores.2015 <- filter(datasetBateadores.20, yearID==2015)
+
+# Creamos las muestras de jugadores de USA y RM para 2015 basandones en el datasetBateadores.2015
+bat.usa <-datasetBateadores.2015 %>%
   filter(birthCountry =='USA')
-bat.rm <-datasetBateadores %>%
+bat.rm <-datasetBateadores.2015 %>%
   filter(birthCountry !='USA')
-
-# Creamos las muestras de jugadores de USA y RM para 2005 
-bat.usa.2005 <-datasetBateadores.2005 %>%
-  filter(birthCountry =='USA')
-bat.rm.2005 <-datasetBateadores.2005 %>%
-  filter(birthCountry !='USA')
-
 
 # dimensiones
-
 dim(bat.usa)
 dim(bat.rm)
 
 # Vista de los datos
-
 head(bat.usa)
 head(bat.rm)
+```
 
-# dimensiones 2005
+### Selección de datos para Regresión lineal sobre el salario
 
-dim(bat.usa.2005)
-dim(bat.rm.2005)
+Pensamos que los indicadores sobre el juego de los diferenes jugadores pueden determinar su salario, para ello, vamos a realizar una selección de todos los jugadores que tienen salario en 2015 calculando la suma de sus indicadores durante su carrera y a estos datos, le añadimos la experiencia y el salario de cada jugador en el 2015.
 
-# Vista de los datos 2005
+```{r fig.align='center', message=FALSE, warning=FALSE, fig.width=14, fig.height=14}
+# Realizamos una primera selección con los indicadores de juego.
+datasetBateadores.group <-  datasetBateadores.20 %>%
+  select(playerID,InnOuts,PO ,A ,E,DP,AB, X3B, HR, SB, CS, IBB, HBP, SH, SF, GIDP)
 
-head(bat.usa.2005)
-head(bat.rm.2005)
+# Realizamos la suma de los indicadores por jugador 
+datasetBateadores.group <-  datasetBateadores.group%>%
+  replace(is.na(.), 0) %>%
+  group_by(playerID) %>%
+  summarise_all(funs(sum))
+
+# Obtenemos la experiencia de los jugadores en 2015
+experiencia <-  datasetBateadores.20%>%
+  filter(yearID==2015) %>%
+  select(playerID,Exp)
+
+# Obtenemos el salario de los jugadores en 2015
+dataSalaries2015<-datasetBateadores.20%>%
+  filter(yearID==2015)%>%
+  select(playerID,salary)
+
+# Integramos los datos de los jugadores con el salario
+datasetBateadores.lm <- merge(datasetBateadores.group,dataSalaries2015,by="playerID")
+
+# Integramos los datos de los jugadores + Salario con la Experiencia
+datasetBateadores.lm <-
+merge(datasetBateadores.lm ,experiencia,by="playerID")
+
+# Mostramos los datos finales para la Regresión
+head(datasetBateadores.lm)
+```
+
+### Selección de datos para Proporción entre jugadores USA y jugadores RM
+
+En este caso queremos comprobar mediante hipótesis de contraste, si las proporciones de jugadores no nacidos en USA cambió entre el año 2000 y el año 2015.
+
+```{r fig.align='center', message=FALSE, warning=FALSE, fig.width=14, fig.height=14}
+# Seleccionamos los jugadores del 2000
+datasetBateadores.2000 <- filter(datasetBateadores.20, yearID==2000)
+
+# Creamos las muestras de jugadores de USA y RM para 2000 
+bat.usa.2000 <-datasetBateadores.2000 %>%
+  filter(birthCountry =='USA')
+bat.rm.2000 <-datasetBateadores.2000 %>%
+  filter(birthCountry !='USA')
+
+# dimensiones 2000
+
+dim(bat.usa.2000)
+dim(bat.rm.2000)
+
+# Vista de los datos 2000
+
+head(bat.usa.2000)
+head(bat.rm.2000)
 
 ```
 
+
 ## Comprobación de la normalidad y homogeneidad de la varianza.
+
+### Comprobación de la normalidad
 
 Podemos ver que los datos de nuestros atributos no siguen una distribución normal.
 
 ```{r fig.align='center', message=FALSE, warning=FALSE, fig.width=14, fig.height=14}
 # Comprobamos la normalidad de los diferentes campos mediante el test de Shapiro
 alpha = 0.05
-columns = colnames(datasetBateadores[,6:18])
+columns = colnames(datasetBateadores.lm[,2:18])
 print(columns)
-    for (i in 6:18) {
+    for (i in 2:18) {
       #print(i)
-         if (is.integer(datasetBateadores[,i]) |    is.numeric(datasetBateadores[,i])) {
-            p_val = shapiro.test(datasetBateadores[,i])$p.value
+         if (is.integer(datasetBateadores.lm[,i]) |    is.numeric(datasetBateadores.lm[,i])) {
+            p_val = shapiro.test(datasetBateadores.lm[,i])$p.value
             if (p_val < alpha) {
-               print(columns[i-5])
+               print(columns[i-1])
                  }
              }
      }
+```
+Podemos ver que todas son sesgadas a la derecha, esto es debido a que son indicadores de rendimiento y de salario y por tanto solo algunos jugadores tienen valores altos de ambos y esto hace que la cola a la derecha se extienda mucho, lo podemos observar representando las distribuciones:
 
+```{r, fig.width=15, fig.height=15}
+multi.hist(x = datasetBateadores.lm[,2:18], dcol = c("blue", "red"), dlty = c("dotted", "solid"),
+           main = "")
 ```
 
-Ahora realizaremos las dos muestras entre jugadores de EEUU y Resto del mundo y comprobaremos la varianza de ambos muestras para comprobar si las muestras presentan homoscedasticidad
+### homogeneidad de la varianza
+
+Ahora comprobaremos la varianza de las muestras entre jugadores de EEUU y Resto del mundo para comprobar si las muestras presentan homoscedasticidad
 
 ```{r}
 
@@ -568,7 +631,7 @@ Por los resultados podemos decir que existe homocedasticidad, las varianzas de l
 
 Queremos responder a la pregunta siguiente:
 
-Es la media de Salario de los jugadores nacidos en USA, mayor que la media salarial de los jugadores nacidos en el Resto del Mundo.
+**¿Es la media de Salario de los jugadores nacidos en USA, mayor que la media salarial de los jugadores nacidos en el Resto del Mundo?**
 
 • Hipótesis nula: la media del salario  de los jugadores de USA es igual que el salario de los jugadores del Resto del Mundo.
 
@@ -604,39 +667,29 @@ Como vemos no podemos desestimar la hipótesis nula y concluimos que el salario 
 
 ### Regresión lineal sobre el salario
 
-Vamos a intentar generar un modelo de regresión lineal multivarible con el obejtivo de que la variable dependiente Salary pueda ser explicada por las variables independientes determinadas por los atributos técnicos de los jugadores.
+Vamos a generar un modelo de regresión lineal multivarible con el obejtivo de que la variable dependiente Salary, pueda ser explicada por las variables independientes determinadas por los atributos técnicos de los jugadores.
 
-Para seleccionar los mejores atributos aplicamos la estrategia de modelización paso a paso con Akaike(AIC)
+Para ello y tras varios intentos, donde hemos alternado diferentes variables, hemos desestimado aquellas que no tenian coeficientes significativos y ademas, hemos calculado los coeficientes para el log del salario y hemos encotrado que tambien mejora el modelo la función polinómica en la variable InnOuts.
 
-```{r}
-
-modelo=lm(salary~Exp+G+X3B+HR+SB+CS+IBB+HBP+SH+SF+GIDP,data=datasetBateadores)
-summary(modelo)
-
-# Akaike(AIC)
-step(object = modelo, direction = "both", trace = 1)
-
-```
-Con este método ya podemos generar el modelo
 
 ```{r}
-modelo_opt=lm(formula = salary ~ Exp + G + X3B + HR + HBP + SH + SF, data = datasetBateadores)
-summary(modelo_opt)
+modelo.salary=lm(log10(salary)~poly(InnOuts, 2)+PO+A+AB+HR+IBB+SH+Exp,data=datasetBateadores.lm)
 
+summary(modelo.salary)
 ```
-Podemos ver, que el coeficiente de determinación $R^2$, es $0.32$, por lo tanto no parece que estas variables expliquen adecuadamente la variabilidad de la variable salary.
 
+
+Podemos ver, que el coeficiente de determinación ajustado $R^2$, es $0.57$, por lo tanto estas variables explican el $57\%$ la variabilidad del logaritmo de la variable salary.
 
 ### Hipótesis de contraste sobre proporción entre jugadores USA y jugadores RM
 
-Creamos los dataset de jugadores de USA y RM y comparamos las proporciones de jugadores nacidos fuera de USA entre los años 2005 y 2015.
+La pregunta que queremos contestar es la siguiente:
 
+**¿La proporción de jugadores del RM en el 2000 es la misma que en el 2015?**
 
-**¿La proporción de jugadores con RM en el 2005 es la misma que en el 2015?**
+**Hipótesis nula:** la proprorción de jugadores RM es la misma en el 2000 y en el 2015.
 
-**Hipótesis nula:** la proprorción de jugadores RM es la misma en el 2005 y en el 2015.
-
-**Hipóteis alternativa:** la proprorción de jugadores RM es diferente en el 2005 y en el 2015.
+**Hipóteis alternativa:** la proprorción de jugadores RM es diferente en el 2000 y en el 2015.
 
 $$
 \left\{
@@ -646,12 +699,12 @@ $$
 \end{array}
 \right.
 $$
-Vamos a realizar un test de contraste bilateral sobre la diferencia de dos proporciones, con muestras grandes. Supondremos que cada jugador puede o no puede haber nacido en USA, siendo la proporción muestral $\hat{p_{2015}}$ para el 2015 y $\hat{p_{2005}}$ para el 2005.
+Vamos a realizar un test de contraste bilateral sobre la diferencia de dos proporciones, con muestras grandes. Supondremos que cada jugador puede o no puede haber nacido en USA, siendo la proporción muestral $\hat{p_{2015}}$ para el 2015 y $\hat{p_{2000}}$ para el 2005.
 
 • El estadístico de contraste sera:
 
-$$Z=\frac{\hat{p_{2015}}-\hat{p_{2005}}}{\sqrt{p (1-p)(\frac{1}{n_{2015}}+\frac{1}{n_{2005}})}}$$
-siendo $p:$ $$p=\frac{n_{2015}\hat{p_{2015}}+n_{2005}\hat{p_{2005}}}{n_{2015}+n_{2005}}$$
+$$Z=\frac{\hat{p_{2015}}-\hat{p_{2000}}}{\sqrt{p (1-p)(\frac{1}{n_{2015}}+\frac{1}{n_{2000}})}}$$
+siendo $p:$ $$p=\frac{n_{2015}\hat{p_{2015}}+n_{2000}\hat{p_{2000}}}{n_{2015}+n_{2000}}$$
 
 Realizaremos el cálculo con un nivel de confianza del $97\%$
 
@@ -660,13 +713,13 @@ Realizaremos el cálculo con un nivel de confianza del $97\%$
 alpha=0.03
 
 # Calculamos las proporciones
-nB <- length(datasetBateadores[['playerID']]);
-nM <- length( datasetBateadores.2005[['playerID']] );
+nB <- length(datasetBateadores.2015[['playerID']]);
+nM <- length( datasetBateadores.2000[['playerID']] );
 
 pB <- length(bat.rm[['playerID']] )/nB 
 message("Proporción del 2015: ",pB)
-pM <- length(bat.rm.2005[['playerID']] )/nM 
-message("Proporción del 2005: ",pM)
+pM <- length(bat.rm.2000[['playerID']] )/nM 
+message("Proporción del 2000: ",pM)
 
 
 p<-(nB*pB + nM*pM) / (nB+nM)
@@ -686,124 +739,118 @@ message("valor de p-value: ",pvalue)
 Obtenemos
 
 ```{r fig.align='center', message=FALSE, warning=FALSE}
-library(kableExtra)
-out <- data.frame(prop_2015=pB,prop_2005=pM, n_2015=nB,n_2005=nM,obs_value=zobs,criticalL=tcritL,criticalU=tcritU, pvalue=pvalue)
+out <- data.frame(prop_2015=pB,prop_2000=pM, n_2015=nB,n_2000=nM,obs_value=zobs,criticalL=tcritL,criticalU=tcritU, pvalue=pvalue)
 
-return(out %>% kable() %>% kable_styling())
+
+out
 
 ```
 
-Si observamos el cuadro con el resultado, podemos ver que el p-value obtenido es mayor que el nivel de significación y por lo tanto, no se puede rechazar la hipótesis nula de igualdad de proporción de jugadores del Resto del Mundo con jugadores de USA a lo largo de estos 10 años con un nivel de confianza del $97\%$.
+Si observamos el cuadro con el resultado, podemos ver que el p-value obtenido es mayor que el nivel de significación y por lo tanto, no se puede rechazar la hipótesis nula de igualdad de proporción de jugadores del Resto del Mundo, con jugadores de USA a lo largo de estos 15 años, con un nivel de confianza del $97\%$.
 
 # Representación de los resultados a partir de tablas y gráficas.
 
 ## Comparación de medias salariales entre jugadors USA y RM
-Veamos la representación de los salarios para jugadores nacidos en USA y en RM, para el 2015 y 2005 y de esta manera entendemos los resultados.
+Veamos la representación de los salarios para jugadores nacidos en USA y en RM, para el 2015 y 2000 y de esta manera entendemos los resultados.
 
 ```{r, fig.width=10, fig.height=5}
-nacionalidad <- vector() # Se crea un vector vacío
-nacionalidad[datasetBateadores$birthCountry=='USA'] <- 'USA'
-nacionalidad[datasetBateadores$birthCountry!='USA'] <- 'RM'
-#delay_SFO <- as.factor(delay_SFO)
-
-datasetBateadores$nacionalidad <- nacionalidad
-
-nacionalidad <- vector() # Se crea un vector vacío
-nacionalidad[datasetBateadores.2005$birthCountry=='USA'] <- 'USA'
-nacionalidad[datasetBateadores.2005$birthCountry!='USA'] <- 'RM'
-#delay_SFO <- as.factor(delay_SFO)
-
-datasetBateadores.2005$nacionalidad <- nacionalidad
 
 par(mfrow=c(1 ,2))
 
-boxplot(salary~nacionalidad,data=datasetBateadores,main="Salary USA 2015", ylab="salary",xlab="Nacionalidad")
+boxplot(salary~nacionalidad,data=datasetBateadores.2015,main="Salary USA 2015", ylab="salary",xlab="Nacionalidad")
 
-boxplot(salary~nacionalidad,data=datasetBateadores.2005,main="Salary USA 2005", ylab="salary",xlab="Nacionalidad")
 ```
 
-Vemos como la variabilidad era mayor para los jugadores RM en el 2005, pero para el 2015 la distribución entre ambos grupos se hace practicamente igual, lo que confirma los resultados que obtuvimos con respecto al salario entre ambos grupos.
+Vemos como la variabilidad para los jugadores del 2015 es practicamente igual, lo que confirma los resultados que obtuvimos con respecto al salario entre ambos grupos.
 
 ## Regresión lineal
 
-Podemos ver que ninguno de los atributos explicativos del modelo de regresión lineal guarda una relación lineal con la varible dependiente, eso justifica la poca calidad del modelo.
+Podemos ver que los atributos explicativos del modelo de regresión lineal contribuyen con una parte de la relación lineal con el logaritmo de la varible dependiente, el salario.
 
 ```{r, fig.width=15, fig.height=15}
- #G + X3B + HR + HBP + SH + SF
-modelo.bat.exp <-lm(salary~Exp,data=datasetBateadores,na.action = na.omit)
-sumary<-summary(modelo.bat.exp)
-smrs.exp<-sumary$r.squared
-modelo.bat.G <-lm(salary~G,data=datasetBateadores,na.action = na.omit)
-sumary<-summary(modelo.bat.G)
-smrs.G<-sumary$r.squared
-modelo.bat.X3B <-lm(salary~X3B,data=datasetBateadores,na.action = na.omit)
-sumary<-summary(modelo.bat.X3B)
-smrs.X3B<-sumary$r.squared
-modelo.bat.HR <-lm(salary~HR,data=datasetBateadores,na.action = na.omit)
+modelo.bat.InnOuts <-lm(log10(salary)~InnOuts,data=datasetBateadores.lm,na.action = na.omit)
+sumary<-summary(modelo.bat.InnOuts)
+smrs.InnOuts<-sumary$r.squared
+
+modelo.bat.PO <-lm(log10(salary)~PO,data=datasetBateadores.lm,na.action = na.omit)
+sumary<-summary(modelo.bat.PO)
+smrs.PO<-sumary$r.squared
+
+modelo.bat.A <-lm(log10(salary)~A,data=datasetBateadores.lm,na.action = na.omit)
+sumary<-summary(modelo.bat.A)
+smrs.A<-sumary$r.squared
+
+modelo.bat.HR <-lm(log10(salary)~HR,data=datasetBateadores.lm,na.action = na.omit)
 sumary<-summary(modelo.bat.HR)
 smrs.HR<-sumary$r.squared
-modelo.bat.HBP <-lm(salary~HBP,data=datasetBateadores,na.action = na.omit)
-sumary<-summary(modelo.bat.HBP)
-smrs.HBP<-sumary$r.squared
-modelo.bat.SH <-lm(salary~SH,data=datasetBateadores,na.action = na.omit)
+
+modelo.bat.AB <-lm(log10(salary)~AB,data=datasetBateadores.lm,na.action = na.omit)
+sumary<-summary(modelo.bat.AB)
+smrs.AB<-sumary$r.squared
+
+modelo.bat.SH <-lm(log10(salary)~SH,data=datasetBateadores.lm,na.action = na.omit)
 sumary<-summary(modelo.bat.SH)
 smrs.SH<-sumary$r.squared
-modelo.bat.SF <-lm(salary~SF,data=datasetBateadores,na.action = na.omit)
-sumary<-summary(modelo.bat.SF)
-smrs.SF<-sumary$r.squared
+
+modelo.bat.IBB <-lm(log10(salary)~IBB,data=datasetBateadores.lm,na.action = na.omit)
+sumary<-summary(modelo.bat.IBB)
+smrs.IBB<-sumary$r.squared
+
+modelo.bat.Exp <-lm(log10(salary)~Exp,data=datasetBateadores.lm,na.action = na.omit)
+sumary<-summary(modelo.bat.Exp)
+smrs.Exp<-sumary$r.squared
+
 
 par(mfrow=c(3 ,3))
-# Exp + G + X3B + HR + HBP + SH + SF
-plot(datasetBateadores$Exp,datasetBateadores$salary,xlab="Experiencia",ylab="Salario",main="EXP")
-text(170, 100, labels = round(smrs.exp ,2), col = "blue")
-abline(modelo.bat.exp,lwd = 3,col="purple")
 
-plot(datasetBateadores$G,datasetBateadores$salary,xlab="G",ylab="Salario",main="G")
-text(170, 100, labels = round(smrs.G ,2), col = "blue")
-abline(modelo.bat.G,lwd = 3,col="purple")
+plot(datasetBateadores.lm$InnOuts,log10(datasetBateadores.lm$salary),xlab="Experiencia",ylab="Salario",main="InnOuts")
+text(170, 100, labels = round(smrs.InnOuts ,2), col = "blue")
+abline(modelo.bat.InnOuts,lwd = 3,col="purple")
 
-plot(datasetBateadores$X3B,datasetBateadores$salary,xlab="X3B",ylab="Salario",main="X3B")
-text(170, 100, labels = round(smrs.X3B ,2), col = "blue")
-abline(modelo.bat.X3B,lwd = 3,col="purple")
+plot(datasetBateadores.lm$PO,log10(datasetBateadores.lm$salary),xlab="PO",ylab="Salario",main="PO")
+text(170, 100, labels = round(smrs.PO ,2), col = "blue")
+abline(modelo.bat.PO,lwd = 3,col="purple")
 
-plot(datasetBateadores$HR,datasetBateadores$salary,xlab="HR",ylab="Salario",main="HR")
+plot(datasetBateadores.lm$A,log10(datasetBateadores.lm$salary),xlab="A",ylab="Salario",main="A")
+text(170, 100, labels = round(smrs.A ,2), col = "blue")
+abline(modelo.bat.A,lwd = 3,col="purple")
+
+plot(datasetBateadores.lm$HR,log10(datasetBateadores.lm$salary),xlab="HR",ylab="Salario",main="HR")
 text(170, 100, labels = round(smrs.HR ,2), col = "blue")
 abline(modelo.bat.HR,lwd = 3,col="purple")
 
-plot(datasetBateadores$HBP,datasetBateadores$salary,xlab="HBP",ylab="Salario",main="HBP")
-text(170, 100, labels = round(smrs.HBP ,2), col = "blue")
-abline(modelo.bat.HBP,lwd = 3,col="purple")
+plot(datasetBateadores.lm$AB,log10(datasetBateadores.lm$salary),xlab="AB",ylab="Salario",main="AB")
+text(170, 100, labels = round(smrs.AB ,2), col = "blue")
+abline(modelo.bat.AB,lwd = 3,col="purple")
 
-plot(datasetBateadores$SH,datasetBateadores$salary,xlab="SH",ylab="Salario",main="SH")
+plot(datasetBateadores.lm$SH,log10(datasetBateadores.lm$salary),xlab="SH",ylab="Salario",main="SH")
 text(170, 100, labels = round(smrs.SH ,2), col = "blue")
 abline(modelo.bat.SH,lwd = 3,col="purple")
 
-plot(datasetBateadores$SF,datasetBateadores$salary,xlab="SF",ylab="Salario",main="SF")
-text(170, 100, labels = round(smrs.SF ,2), col = "blue")
-abline(modelo.bat.SF,lwd = 3,col="purple")
+plot(datasetBateadores.lm$IBB,log10(datasetBateadores.lm$salary),xlab="IBB",ylab="Salario",main="IBB")
+text(170, 100, labels = round(smrs.IBB ,2), col = "blue")
+abline(modelo.bat.IBB,lwd = 3,col="purple")
 
-# Exp + G + X3B + HR + HBP + SH + SF
+plot(datasetBateadores.lm$Exp,log10(datasetBateadores.lm$salary),xlab="Exp",ylab="Salario",main="Exp")
+text(170, 100, labels = round(smrs.Exp ,2), col = "blue")
+abline(modelo.bat.Exp,lwd = 3,col="purple")
+
 ```
 
 
 
 ## Proporción de jugadores USA y RM
 
+Vamos a calcular las tablas de frecuencias para posteriormente representarlas
+
 ```{r, fig.width=15, fig.height=5}
-nacionalidad <- vector() # Se crea un vector vacío
-nacionalidad[datasetBateadores.10$birthCountry=='USA'] <- 'USA'
-nacionalidad[datasetBateadores.10$birthCountry!='USA'] <- 'RM'
-#delay_SFO <- as.factor(delay_SFO)
 
-datasetBateadores.10$nacionalidad <- nacionalidad
-
-
-prop.bat.yr <- table(datasetBateadores.10$nacionalidad, datasetBateadores.10$yearID)
+prop.bat.yr <- table(datasetBateadores.M2000$nacionalidad, datasetBateadores.M2000$yearID)
 prop.bat.yr <-round(prop.table(x=prop.bat.yr),3)
 prop.bat.yr
 ```
 
-Representamos estas proporciones y vemos que las proporciones no tienen cambios significativos a lo largo de estos 10 años.
+Representamos estas proporciones y vemos que las proporciones no tienen cambios significativos a lo largo de estos 15 años.
 
 ```{r, fig.width=15, fig.height=5}
 barplot(prop.bat.yr, main="Proporciones por año", xlab="Año", ylab="Proporción", col=c("gray","purple"),
@@ -812,4 +859,14 @@ barplot(prop.bat.yr, main="Proporciones por año", xlab="Año", ylab="Proporció
 
 # ¿cuáles son las conclusiones? ¿Los resultados permiten responder al problema?
 
-Según lo que hemos visto, los resultados nos permiten responder a dos de las cuestiones, sobre los salarios de los dos grupos de jugadores nacidos en USA y RM y sobre si la proprorción de estos grupos a lo largo de los años se ha mantenido, sin embargo, no hemos podido explicar el salario de los jugadores a partir de las caracteristicas de juego de cada jugador.
+La conclusión principal es la importancia de realizar un proceso completo, donde se parte de una correcta selección de datos y atributos, el estudio de los valores perdidos y outliers y elegir bien la mejor estrategia de imputación en cada caso, esto permite una mejor aplicación de los diferentes análisis que se decidan hacer posteriormente.
+
+En nuestro caso realizamos tres análisis diferentes basados en nuestros datos.
+
+En primer lugar, quisimos demostrar que para el 2015 los jugadores nacidos en USA y en el Resto del Mundo RM, cobraban igual y después de realizar una prueba de hipótesis, pudimos contestar a la pregunta planteada y efectivamente cobran igual.
+
+Posteriormente, quisimos averiguar, si los atributos de juego podían explicar el salario de los jugadores y concluimos, tras realizar numerosas pruebas, que estos podían explicar la variabilidad del logaritmo del salario en un 57%.
+
+Finalmente, queríamos conocer, si la proporción de jugadores del RM había variado significativamente desde el año 2000 al 2015 y mediante un contraste de hipótesis, concluimos que eran significativamente iguales.
+
+Por lo tanto, nuestros datos contestaron a nuestras preguntas.
