@@ -86,7 +86,9 @@ dataFielding <- read.csv('../dataset/Fielding.csv')
 print("[*] Dimensiones")
 dim(dataFielding)
 # Es necesario cambiar algunos nombres por coincidencia, les añadimos f.
-names (dataFielding) = c("playerID", "yearID","stint","teamID", "lgID", "POS",   "f.G", "GS", "InnOuts","PO", "A", "E" , "DP", "PB", "WP", "f.SB", "f.CS", "ZR")
+names (dataFielding) = c("playerID", "yearID","stint","teamID", "lgID", "POS",   
+                         "f.G", "GS", "InnOuts","PO", "A", "E" , "DP", "PB", 
+                         "WP", "f.SB", "f.CS", "ZR")
 print("[*] Nombre Columnas")
 colnames(dataFielding)
 ```
@@ -361,7 +363,8 @@ Una vez realizado la limpieza de datos, se ha descubierto que para ciertos jugad
 
 ```{r}
 # Se agrupan registros para el mismo jugador calculando la media de los datos estadisticos
-datasetBateadores.20 <- aggregate(cbind(InnOuts,PO ,A, E, DP, AB, X3B, HR,SB,CS,IBB,HBP,SH, SF, GIDP) ~ yearID  + playerID +   nameLast +  birthCountry + Exp + salary, data = datasetBateadores.20, FUN = sum)
+datasetBateadores.20 <- aggregate(cbind(InnOuts,PO ,A, E, DP, AB, X3B, HR,SB,CS,IBB,HBP,SH, SF, GIDP) ~ yearID  
+                                  + playerID +   nameLast +  birthCountry + Exp + salary, data = datasetBateadores.20, FUN = sum)
 # Ordenar por idJugador
 datasetBateadores.20 <- datasetBateadores.20[order(datasetBateadores.20$playerID),]
 head(datasetBateadores.20, n=15)
@@ -640,8 +643,8 @@ Queremos responder a la pregunta siguiente:
 $$
 \left\{
 \begin{array}{ll}
-• \thinspace Hipótesis\thinspace nula\hspace{31pt} H_{0}: & \mu_{USA}-\mu_{RM} =0\\
-• \thinspace Hipótesis\thinspace alternativa\thinspace H_{1}: & \mu_{USA}-\mu_{RM} >0
+\thinspace Hipótesis\thinspace nula\hspace{31pt} H_{0}: & \mu_{USA}-\mu_{RM} =0\\
+\thinspace Hipótesis\thinspace alternativa\thinspace H_{1}: & \mu_{USA}-\mu_{RM} >0
 \end{array}
 \right.
 $$
@@ -694,8 +697,8 @@ La pregunta que queremos contestar es la siguiente:
 $$
 \left\{
 \begin{array}{ll}
-• \thinspace Hipótesis\thinspace nula\hspace{31pt} H_{0}: & p_{2015} = p_{2005}\\
-• \thinspace Hipótesis\thinspace alternativa\thinspace H_{1}: & p_{2015} \neq p_{2005}
+\thinspace Hipótesis\thinspace nula\hspace{31pt} H_{0}: & p_{2015} = p_{2005}\\
+\thinspace Hipótesis\thinspace alternativa\thinspace H_{1}: & p_{2015} \neq p_{2005}
 \end{array}
 \right.
 $$
@@ -739,7 +742,8 @@ message("valor de p-value: ",pvalue)
 Obtenemos
 
 ```{r fig.align='center', message=FALSE, warning=FALSE}
-out <- data.frame(prop_2015=pB,prop_2000=pM, n_2015=nB,n_2000=nM,obs_value=zobs,criticalL=tcritL,criticalU=tcritU, pvalue=pvalue)
+out <- data.frame(prop_2015=pB,prop_2000=pM, n_2015=nB,n_2000=nM,
+                  obs_value=zobs,criticalL=tcritL,criticalU=tcritU, pvalue=pvalue)
 
 
 out

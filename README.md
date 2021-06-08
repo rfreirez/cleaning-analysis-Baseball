@@ -15,9 +15,13 @@ MAIN
 
 ## Instalación
     * remotes::install_github("statistikat/VIM")
-    * install.packages("kableExtra")
 
 ## Autores
 * Manuel García Guillén
 * Renán Freire Zurita
 
+## Ficheros
+
+* **code/cleaning-analysis.rmd** esta plantilla está conformada con el código R dividido en secciones y con su respectiva descripción.
+* **dataset/** Conjunto de datos de jugadores de béisbol extraídos de la página web kaggle.
+* **PDF/** Documento formato PDF generado por el archivo RMD antes mencionado.
